@@ -31,8 +31,12 @@ import {
   canAccessAdminDashboard,
   buildStructuredDataJsonLd,
   serializeStructuredDataJsonLd,
+  filterOrdersForUserSession,
+  mergeSessionOrdersWithFetched,
+  simulateRealtimeOrderHistoryTick,
+  getOrderStatusLabel,
 } from './storeLogic';
-import { Product } from '../types/store';
+import { CustomerOrder, Product } from '../types/store';
 
 const sampleProducts: Product[] = [
   {
@@ -356,6 +360,90 @@ test('buildStructuredDataJsonLd generates valid Schema.org Product, Store, and B
   assert.equal(catItemListNode.numberOfItems, 1);
 });
 
+test('session-linked Order History helpers filter, merge, and advance real-time status timelines', () => {
+  const sampleOrders: CustomerOrder[] = [
+    {
+      orderId: 'VDK-892410',
+      fullName: 'Tariq Al Maktoum',
+      email: 'tariq.almaktoum@dubai.ae',
+      phone: '+971 50 842 9910',
+      emirate: 'Dubai',
+      address: 'Downtown Dubai',
+      paymentMethod: 'Cash on Delivery',
+      items: [{ product: sampleProducts[0], quantity: 1 }],
+      subtotal: 45,
+      shippingFee: 25,
+      total: 70,
+      createdAt: '14:10 GST',
+      status: 'packed_al_quoz',
+      courierName: 'Rashid · Bike #14',
+      estimatedArrival: '35 mins',
+      timeline: buildOrderTimeline('packed_al_quoz'),
+    },
+    {
+      orderId: 'VDK-891855',
+      fullName: 'Other Customer',
+      email: 'other@sharjah.ae',
+      phone: '+971 55 111 2222',
+      emirate: 'Sharjah',
+      address: 'Al Majaz',
+      paymentMethod: 'Card Link on Delivery',
+      items: [{ product: sampleProducts[1], quantity: 2 }],
+      subtotal: 270,
+      shippingFee: 25,
+      total: 295,
+      createdAt: '12:05 GST',
+      status: 'out_for_delivery',
+      courierName: 'Zayed · Van #04',
+      estimatedArrival: '20 mins',
+      timeline: buildOrderTimeline('out_for_delivery'),
+    },
+  ];
 
+  // Filter for signed-in user session
+  const tariqOrders = filterOrdersForUserSession(
+    sampleOrders,
+    {
+      uid: 'u-1',
+      email: 'tariq.almaktoum@dubai.ae',
+      displayName: 'Tariq Al Maktoum',
+      phone: '+971 50 842 9910',
+      emirate: 'Dubai',
+      role: 'customer',
+    },
+    []
+  );
+  assert.equal(tariqOrders.length, 1);
+  assert.equal(tariqOrders[0].orderId, 'VDK-892410');
 
+  // Filter with explicit sessionOrderIds includes session-linked orders even for another email
+  const withSessionId = filterOrdersForUserSession(
+    sampleOrders,
+    {
+      uid: 'u-1',
+      email: 'tariq.almaktoum@dubai.ae',
+      displayName: 'Tariq Al Maktoum',
+      phone: '+971 50 842 9910',
+      emirate: 'Dubai',
+      role: 'customer',
+    },
+    ['VDK-891855']
+  );
+  assert.equal(withSessionId.length, 2);
 
+  // Merge fetched orders updates status & rebuilds timeline
+  const merged = mergeSessionOrdersWithFetched(sampleOrders, [
+    {
+      ...sampleOrders[0],
+      status: 'out_for_delivery',
+    },
+  ]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].status, 'out_for_delivery');
+  assert.equal(getOrderStatusLabel(merged[0].status), 'Courier En Route (Live GPS Telemetry)');
+
+  // Advance real-time mock status tick
+  const ticked = simulateRealtimeOrderHistoryTick(merged, 'VDK-892410');
+  assert.equal(ticked[0].status, 'delivered');
+  assert.equal(ticked[0].timeline?.find((s) => s.current)?.status, 'delivered');
+});

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   X,
@@ -9,10 +9,25 @@ import {
   Mail,
   Activity,
   LayoutDashboard,
+  Clock,
+  RefreshCw,
+  Package,
+  Truck,
+  CheckCircle2,
+  RotateCcw,
+  SkipForward,
+  Radio,
+  MapPin,
 } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useCartStore } from '../store/useCartStore';
+import {
+  filterOrdersForUserSession,
+  formatAED,
+  getOrderProgressPercent,
+  getOrderStatusLabel,
+} from '../utils/storeLogic';
 import { OrderTrackingTimeline } from './OrderTrackingTimeline';
 
 interface AccountModalProps {
@@ -22,15 +37,62 @@ interface AccountModalProps {
 
 export function AccountModal({ open, onClose }: AccountModalProps) {
   const currentUser = useCartStore((state) => state.currentUser);
+  const recentOrders = useCartStore((state) => state.recentOrders);
+  const sessionOrderIds = useCartStore((state) => state.sessionOrderIds);
+  const userSessionId = useCartStore((state) => state.userSessionId);
+  const isFetchingOrderHistory = useCartStore((state) => state.isFetchingOrderHistory);
+  const lastOrderHistorySyncAt = useCartStore((state) => state.lastOrderHistorySyncAt);
+
   const setAuthSession = useCartStore((state) => state.setAuthSession);
   const navigateToAdmin = useCartStore((state) => state.navigateToAdmin);
+  const fetchSessionOrderHistory = useCartStore((state) => state.fetchSessionOrderHistory);
+  const tickSessionOrderHistoryStatus = useCartStore(
+    (state) => state.tickSessionOrderHistoryStatus
+  );
+  const reorderHistoricalOrder = useCartStore((state) => state.reorderHistoricalOrder);
 
-  const [activeTab, setActiveTab] = useState<'tracking' | 'profile'>('tracking');
+  const [activeTab, setActiveTab] = useState<'orders' | 'tracking' | 'profile'>('orders');
+  const [selectedHistoryOrderId, setSelectedHistoryOrderId] = useState<string>(
+    recentOrders[0]?.orderId || 'VDK-892410'
+  );
+  const [isLiveStreamActive, setIsLiveStreamActive] = useState<boolean>(false);
+
   const [phoneInput, setPhoneInput] = useState('+971 50 842 9910');
   const [emailInput, setEmailInput] = useState('tariq.almaktoum@dubai.ae');
   const [nameInput, setNameInput] = useState('Tariq Al Maktoum');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  const sessionOrders = useMemo(
+    () => filterOrdersForUserSession(recentOrders, currentUser, sessionOrderIds),
+    [recentOrders, currentUser, sessionOrderIds]
+  );
+
+  // Fetch real-time order statuses linked to the user session when modal or Order History tab opens
+  useEffect(() => {
+    if (open && activeTab === 'orders') {
+      fetchSessionOrderHistory();
+    }
+  }, [open, activeTab, fetchSessionOrderHistory]);
+
+  // Keep selectedHistoryOrderId valid when sessionOrders updates
+  useEffect(() => {
+    if (
+      sessionOrders.length > 0 &&
+      !sessionOrders.some((o) => o.orderId === selectedHistoryOrderId)
+    ) {
+      setSelectedHistoryOrderId(sessionOrders[0].orderId);
+    }
+  }, [sessionOrders, selectedHistoryOrderId]);
+
+  // Optional live status stream interval for real-time mock updates across the selected session order
+  useEffect(() => {
+    if (!open || !isLiveStreamActive) return;
+    const timer = setInterval(() => {
+      tickSessionOrderHistoryStatus(selectedHistoryOrderId);
+    }, 2200);
+    return () => clearInterval(timer);
+  }, [open, isLiveStreamActive, selectedHistoryOrderId, tickSessionOrderHistoryStatus]);
 
   const handleGoogleSignIn = async () => {
     setAuthError(null);
@@ -138,19 +200,19 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.18 }}
-            className="relative z-10 max-h-[90vh] w-full max-w-3xl overflow-y-auto border border-zinc-200 bg-white shadow-2xl"
+            className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto border border-zinc-200 bg-white shadow-2xl"
           >
             {/* Modal Top Header */}
             <div className="sticky top-0 z-20 flex items-start sm:items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-3.5 sm:px-6 sm:py-4">
               <div className="min-w-0 flex-1">
                 <span className="block text-[10px] sm:text-[11px] font-bold tracking-widest text-zinc-500 uppercase truncate">
-                  UAE Customer Account & Live Dispatch Telemetry
+                  UAE Customer Account & Session Telemetry
                 </span>
                 <h2
                   id="account-modal-title"
                   className="font-display text-base sm:text-xl font-bold text-zinc-950 leading-snug"
                 >
-                  Account & Real-Time Order Status Tracking
+                  Account, Order History & Real-Time Dispatch Tracking
                 </h2>
               </div>
 
@@ -181,9 +243,37 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
             </div>
 
             {/* Navigation Tabs inside Account Modal */}
-            <div className="flex overflow-x-auto no-scrollbar border-b border-zinc-200 bg-zinc-50 px-4 sm:px-6">
+            <div
+              role="tablist"
+              aria-label="Account modal tabs"
+              className="flex overflow-x-auto no-scrollbar border-b border-zinc-200 bg-zinc-50 px-4 sm:px-6"
+            >
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === 'orders'}
+                data-testid="account-tab-orders"
+                onClick={() => setActiveTab('orders')}
+                className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 sm:px-4 py-3 text-xs font-bold transition-colors whitespace-nowrap ${
+                  activeTab === 'orders'
+                    ? 'border-zinc-950 text-zinc-950'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Package className="h-3.5 w-3.5 shrink-0" />
+                <span>Order History</span>
+                <span
+                  data-testid="order-history-count-badge"
+                  className="font-mono-num bg-zinc-950 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                >
+                  {sessionOrders.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'tracking'}
                 data-testid="account-tab-tracking"
                 onClick={() => setActiveTab('tracking')}
                 className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 sm:px-4 py-3 text-xs font-bold transition-colors whitespace-nowrap ${
@@ -195,8 +285,11 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
                 <Activity className="h-3.5 w-3.5 shrink-0" />
                 <span>Real-Time Order Tracking</span>
               </button>
+
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === 'profile'}
                 data-testid="account-tab-profile"
                 onClick={() => setActiveTab('profile')}
                 className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 sm:px-4 py-3 text-xs font-bold transition-colors whitespace-nowrap ${
@@ -213,7 +306,244 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
             </div>
 
             <div className="p-4 sm:p-6 space-y-6">
-              {/* TAB 1: Real-Time Order Status Tracking Component */}
+              {/* TAB 1: Order History Linked to User Session + Real-Time Mock Timeline */}
+              {activeTab === 'orders' && (
+                <div data-testid="order-history-panel" className="space-y-5">
+                  {/* Session Link & Real-Time Status Fetch Controls */}
+                  <div className="flex flex-col gap-3 border border-zinc-200 bg-zinc-950 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 font-mono-num text-[10px] font-bold text-emerald-300 uppercase">
+                          <Radio className="h-2.5 w-2.5" />
+                          <span>Session Linked</span>
+                        </span>
+                        <span
+                          data-testid="order-history-session-id"
+                          className="font-mono-num text-xs font-bold text-zinc-200 truncate"
+                        >
+                          {currentUser
+                            ? `${currentUser.displayName} (${currentUser.email})`
+                            : `Browser Session #${userSessionId}`}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-zinc-400">
+                        Real-time order history synced with session storage & Dubai dispatch telemetry
+                        {lastOrderHistorySyncAt ? ` · Last synced ${lastOrderHistorySyncAt}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        data-testid="order-history-live-stream-btn"
+                        onClick={() => setIsLiveStreamActive((prev) => !prev)}
+                        className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                          isLiveStreamActive
+                            ? 'border-emerald-400 bg-emerald-500 text-zinc-950'
+                            : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-400'
+                        }`}
+                      >
+                        <Activity className="h-3 w-3" />
+                        <span>
+                          {isLiveStreamActive ? 'Streaming Live Updates...' : 'Stream Live Updates'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="refresh-order-history-btn"
+                        disabled={isFetchingOrderHistory}
+                        onClick={() => fetchSessionOrderHistory()}
+                        className="inline-flex items-center gap-1.5 border border-white bg-white px-3 py-1.5 text-[11px] font-bold text-zinc-950 transition-colors hover:bg-zinc-200 disabled:opacity-60"
+                      >
+                        <RefreshCw
+                          className={`h-3 w-3 ${isFetchingOrderHistory ? 'animate-spin' : ''}`}
+                        />
+                        <span>
+                          {isFetchingOrderHistory ? 'Fetching...' : 'Refresh Status'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Session Order History Cards List */}
+                  <div
+                    data-testid="order-history-list"
+                    className="space-y-3"
+                  >
+                    {sessionOrders.map((order) => {
+                      const isSelected = order.orderId === selectedHistoryOrderId;
+                      const progress = getOrderProgressPercent(order.status);
+                      const statusLabel = getOrderStatusLabel(order.status);
+                      const isDelivered = order.status === 'delivered';
+
+                      return (
+                        <div
+                          key={order.orderId}
+                          data-testid={`order-history-card-${order.orderId}`}
+                          className={`border transition-colors ${
+                            isSelected
+                              ? 'border-zinc-950 bg-white shadow-sm'
+                              : 'border-zinc-200 bg-zinc-50/70 hover:border-zinc-400'
+                          }`}
+                        >
+                          {/* Card Top Summary Bar */}
+                          <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono-num text-sm font-bold text-zinc-950">
+                                  #{order.orderId}
+                                </span>
+                                <span
+                                  data-testid={`order-history-status-${order.orderId}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                    isDelivered
+                                      ? 'bg-emerald-100 text-emerald-900'
+                                      : 'bg-zinc-950 text-white'
+                                  }`}
+                                >
+                                  {isDelivered ? (
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-700" />
+                                  ) : (
+                                    <Truck className="h-3 w-3 text-emerald-400" />
+                                  )}
+                                  <span>{statusLabel}</span>
+                                </span>
+                                <span className="font-mono-num text-[11px] font-semibold text-zinc-500">
+                                  ({progress}%)
+                                </span>
+                              </div>
+
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-3 w-3 text-zinc-400" />
+                                  <span>{order.createdAt}</span>
+                                </span>
+                                <span className="text-zinc-300">·</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="h-3 w-3 text-zinc-400" />
+                                  <span className="truncate max-w-xs">
+                                    {order.emirate} — {order.address}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end shrink-0">
+                              <div className="text-left sm:text-right">
+                                <p className="font-mono-num text-sm font-bold text-zinc-950">
+                                  {formatAED(order.total)}
+                                </p>
+                                <p className="text-[11px] text-zinc-500">
+                                  {order.paymentMethod}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  data-testid={`history-select-order-${order.orderId}`}
+                                  onClick={() => setSelectedHistoryOrderId(order.orderId)}
+                                  className={`px-2.5 py-1.5 text-[11px] font-bold transition-colors ${
+                                    isSelected
+                                      ? 'bg-zinc-950 text-white'
+                                      : 'border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-950'
+                                  }`}
+                                >
+                                  {isSelected ? 'Viewing Timeline' : 'Inspect Timeline'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  data-testid={`history-advance-order-${order.orderId}`}
+                                  onClick={() => {
+                                    setSelectedHistoryOrderId(order.orderId);
+                                    tickSessionOrderHistoryStatus(order.orderId);
+                                  }}
+                                  title="Advance mock real-time status step"
+                                  className="inline-flex items-center gap-1 border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-zinc-900 transition-colors hover:border-zinc-950"
+                                >
+                                  <SkipForward className="h-3 w-3" />
+                                  <span>Next Step</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  data-testid={`history-reorder-${order.orderId}`}
+                                  onClick={() => {
+                                    reorderHistoricalOrder(order.orderId);
+                                    onClose();
+                                  }}
+                                  title="Add items from this order to cart"
+                                  className="inline-flex items-center gap-1 border border-zinc-200 bg-zinc-100 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-950 hover:text-white"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  <span className="hidden sm:inline">Reorder</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Ordered Line Items Strip */}
+                          <div className="px-4 py-3">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              {order.items.map((item, idx) => (
+                                <div
+                                  key={`${order.orderId}-item-${idx}`}
+                                  className="flex items-center gap-2.5 border border-zinc-200 bg-white px-2.5 py-1.5 text-xs"
+                                >
+                                  <img
+                                    src={item.product.image}
+                                    alt={item.product.title}
+                                    className="h-8 w-8 shrink-0 border border-zinc-100 object-cover"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-zinc-900 truncate max-w-[200px]">
+                                      {item.quantity}× {item.product.title}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500">
+                                      {item.selectedVariant?.flavor || item.product.flavorProfile} ·{' '}
+                                      {item.selectedVariant?.nicotine || item.product.nicotineStrength}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Embedded Real-Time Mock Timeline Linked to Selected Session Order */}
+                  <div
+                    data-testid="order-history-timeline-wrapper"
+                    className="space-y-2 pt-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-display text-sm font-bold text-zinc-950">
+                          Real-Time Mock Status Timeline — Order #{selectedHistoryOrderId}
+                        </h3>
+                        <p className="text-xs text-zinc-500">
+                          Interactive 5-stage courier timeline linked to your active session order history.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('tracking')}
+                        className="text-xs font-bold text-zinc-950 underline underline-offset-4 hover:text-zinc-700"
+                      >
+                        Open Dedicated Full-Screen Tracker
+                      </button>
+                    </div>
+
+                    <OrderTrackingTimeline selectedOrderId={selectedHistoryOrderId} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Real-Time Order Status Tracking Component */}
               {activeTab === 'tracking' && (
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -236,11 +566,11 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
                     )}
                   </div>
 
-                  <OrderTrackingTimeline />
+                  <OrderTrackingTimeline selectedOrderId={selectedHistoryOrderId} />
                 </div>
               )}
 
-              {/* TAB 2: Authentication & Profile (Firebase Google OAuth + UAE Express Login) */}
+              {/* TAB 3: Authentication & Profile (Firebase Google OAuth + UAE Express Login) */}
               {activeTab === 'profile' && (
                 <div className="space-y-5">
                   {currentUser ? (
@@ -280,7 +610,7 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
                           Authenticated Session Active (In-Memory Token Protection)
                         </p>
                         <p>
-                          Your account is connected to our Cloud SQL PostgreSQL database and Resend transactional dispatch notifications.
+                          Your account is connected to our Cloud SQL PostgreSQL database, session order history, and Resend transactional dispatch notifications.
                         </p>
                       </div>
                     </div>
@@ -297,7 +627,7 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
                             Continue with Google
                           </h3>
                           <p className="mt-1.5 text-xs leading-relaxed text-zinc-600">
-                            Authenticate with Firebase Auth & Google OAuth to sync your orders, wishlist, and admin permissions with Cloud SQL PostgreSQL.
+                            Authenticate with Firebase Auth & Google OAuth to sync your order history, wishlist, and admin permissions with Cloud SQL PostgreSQL.
                           </p>
                           {authError && (
                             <p className="mt-3 border border-amber-300 bg-amber-50 p-2.5 text-[11px] text-amber-900">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   User,
@@ -15,6 +15,7 @@ import {
   Send,
   MessageCircle,
   Share2,
+  Pin,
 } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { calculateTotalItems, formatAED } from '../utils/storeLogic';
@@ -82,6 +83,17 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openMegaMenu, setOpenMegaMenu] = useState<ProductCategory | null>(null);
+  const [isMegaMenuPinned, setIsMegaMenuPinned] = useState<boolean>(false);
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 12);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const totalItems = calculateTotalItems(items);
   const totalWishlist = wishlistIds.length;
@@ -91,6 +103,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
     options?: { brand?: string | null; search?: string }
   ) => {
     setOpenMegaMenu(null);
+    setIsMegaMenuPinned(false);
     setIsMobileMenuOpen(false);
     navigateToCategory(category, options);
   };
@@ -102,8 +115,15 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
 
   return (
     <div
-      className="sticky top-0 z-40 w-full bg-white"
-      onMouseLeave={() => setOpenMegaMenu(null)}
+      data-testid="sticky-header-wrapper"
+      className={`sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md transition-shadow duration-200 ${
+        isScrolled || openMegaMenu ? 'shadow-lg' : ''
+      }`}
+      onMouseLeave={() => {
+        if (!isMegaMenuPinned) {
+          setOpenMegaMenu(null);
+        }
+      }}
     >
       {/* Top Announcement Bar (Dark) with Social Media Channels */}
       <div className="bg-zinc-950 px-3 py-1.5 text-white sm:px-6 lg:px-8">
@@ -165,8 +185,8 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
         </div>
       </div>
 
-      {/* Main Sticky Header */}
-      <header className="relative border-b border-zinc-200 bg-white/95 backdrop-blur-xs">
+      {/* Main Sticky Header & Sticky Mega Menu Bar */}
+      <header className="relative border-b border-zinc-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3.5 lg:gap-4 lg:px-8">
           {/* Left: Mobile Menu Trigger + Text Logo */}
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5 shrink-0">
@@ -189,6 +209,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
               onClick={(e) => {
                 e.preventDefault();
                 setOpenMegaMenu(null);
+                setIsMegaMenuPinned(false);
                 setSearchQuery('');
                 navigateToHome();
               }}
@@ -198,8 +219,9 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
             </a>
           </div>
 
-          {/* Center: Desktop Navigation Links with Mega Menu Dropdown Triggers */}
+          {/* Center: Desktop Sticky Mega Menu Navigation Links */}
           <nav
+            data-testid="sticky-mega-menu-nav"
             aria-label="Main Categories"
             className="hidden lg:flex items-center gap-2.5 xl:gap-4 text-xs xl:text-sm font-medium text-zinc-600 min-w-0"
           >
@@ -210,17 +232,22 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                 <div
                   key={link}
                   className="relative flex items-center"
-                  onMouseEnter={() => setOpenMegaMenu(link)}
+                  onMouseEnter={() => {
+                    if (!isMegaMenuPinned) {
+                      setOpenMegaMenu(link);
+                    }
+                  }}
                 >
                   <button
                     type="button"
                     data-testid={`nav-link-${link.toLowerCase().replace(/\s+/g, '-')}`}
                     aria-expanded={isMenuOpen}
                     onClick={() => {
-                      if (openMegaMenu === link) {
+                      if (openMegaMenu === link && isMegaMenuPinned) {
                         handleCategoryPageNavigation(link);
                       } else {
                         setOpenMegaMenu(link);
+                        setIsMegaMenuPinned(true);
                       }
                     }}
                     onDoubleClick={() => handleCategoryPageNavigation(link)}
@@ -270,6 +297,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                 onClick={(e) => {
                   e.preventDefault();
                   setOpenMegaMenu(null);
+                  setIsMegaMenuPinned(false);
                   navigateToAdmin();
                 }}
                 aria-label="Return to Admin Dashboard (/admin)"
@@ -330,24 +358,101 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
           </div>
         </div>
 
-        {/* Full-Width Desktop Mega Menu Panel */}
+        {/* Sticky Mega Menu Quick-Switch Bar (Always Sticky at Top of Viewport) */}
+        <div
+          data-testid="sticky-mega-menu-bar"
+          className="border-t border-zinc-100 bg-zinc-50/95 px-3 py-1.5 sm:px-6 lg:px-8"
+        >
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="inline-flex items-center gap-1 bg-zinc-950 px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase shrink-0">
+                <Layers className="h-2.5 w-2.5" />
+                <span>Mega Menu</span>
+              </span>
+              {NAV_LINKS.map((cat) => {
+                const isSelected = openMegaMenu === cat;
+                return (
+                  <button
+                    key={`sticky-pill-${cat}`}
+                    type="button"
+                    data-testid={`sticky-mega-trigger-${cat.toLowerCase().replace(/\s+/g, '-')}`}
+                    onClick={() => {
+                      if (openMegaMenu === cat && isMegaMenuPinned) {
+                        setOpenMegaMenu(null);
+                        setIsMegaMenuPinned(false);
+                      } else {
+                        setOpenMegaMenu(cat);
+                        setIsMegaMenuPinned(true);
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                      isSelected
+                        ? 'bg-zinc-950 text-white'
+                        : 'text-zinc-700 hover:bg-zinc-200/70 hover:text-zinc-950'
+                    }`}
+                  >
+                    <span>{cat}</span>
+                    <ChevronDown
+                      className={`h-3 w-3 transition-transform ${
+                        isSelected ? 'rotate-180 text-emerald-400' : 'text-zinc-400'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {openMegaMenu && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  data-testid="pin-mega-menu-btn"
+                  onClick={() => setIsMegaMenuPinned((prev) => !prev)}
+                  className={`inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-bold uppercase transition-colors ${
+                    isMegaMenuPinned
+                      ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-950'
+                  }`}
+                >
+                  <Pin className="h-2.5 w-2.5" />
+                  <span>{isMegaMenuPinned ? 'Sticky Pinned' : 'Pin Menu'}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="close-mega-menu-btn"
+                  onClick={() => {
+                    setOpenMegaMenu(null);
+                    setIsMegaMenuPinned(false);
+                  }}
+                  aria-label="Close mega menu"
+                  className="inline-flex items-center gap-1 bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-900 hover:bg-zinc-950 hover:text-white"
+                >
+                  <X className="h-2.5 w-2.5" />
+                  <span>Close</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Full-Width Sticky Mega Menu Panel (Sticks directly to the sticky header across scroll depths) */}
         {openMegaMenu && activeMegaData && spotlightProduct && (
           <div
             data-testid="mega-menu-panel"
             role="region"
-            aria-label={`${openMegaMenu} Mega Menu`}
-            className="hidden lg:block absolute top-full right-0 left-0 z-50 border-b border-zinc-950 bg-white shadow-2xl"
+            aria-label={`${openMegaMenu} Sticky Mega Menu`}
+            className="absolute top-full right-0 left-0 z-50 max-h-[calc(100vh-6.5rem)] overflow-y-auto border-b-2 border-zinc-950 bg-white/98 backdrop-blur-md shadow-2xl"
           >
-            <div className="mx-auto max-w-7xl px-8 py-8">
-              <div className="grid grid-cols-12 gap-8">
+            <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
                 {/* Column 1 (3 cols): Category Overview & Direct Category Page CTA */}
-                <div className="col-span-3 flex flex-col justify-between border-r border-zinc-200 pr-6">
+                <div className="lg:col-span-3 flex flex-col justify-between border-b border-zinc-200 pb-5 lg:border-r lg:border-b-0 lg:pb-0 lg:pr-6">
                   <div>
                     <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">
                       <Layers className="h-3.5 w-3.5 text-zinc-950" />
                       <span>{activeMegaData.tagline}</span>
                     </div>
-                    <h3 className="mt-2 font-display text-2xl font-bold tracking-tight text-zinc-950">
+                    <h3 className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-zinc-950">
                       {openMegaMenu}
                     </h3>
                     <p className="mt-2 text-xs leading-relaxed text-zinc-600">
@@ -355,7 +460,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                     </p>
                   </div>
 
-                  <div className="mt-6 space-y-2 pt-4 border-t border-zinc-100">
+                  <div className="mt-5 space-y-2 pt-4 border-t border-zinc-100">
                     <button
                       type="button"
                       data-testid="mega-menu-view-category-btn"
@@ -377,7 +482,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                 </div>
 
                 {/* Columns 2 & 3 (5 cols): Subcategory & Brand Columns */}
-                <div className="col-span-5 grid grid-cols-2 gap-6">
+                <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {activeMegaData.columns.map((col) => (
                     <div key={col.heading}>
                       <h4 className="border-b border-zinc-200 pb-2 text-xs font-bold tracking-wider text-zinc-950 uppercase">
@@ -411,7 +516,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                 </div>
 
                 {/* Column 4 (4 cols): Spotlight Product Card inside Mega Menu */}
-                <div className="col-span-4 border-l border-zinc-200 pl-6">
+                <div className="lg:col-span-4 border-t border-zinc-200 pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
                   <div className="flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">
                       <Sparkles className="h-3.5 w-3.5 text-zinc-950" />
@@ -426,17 +531,17 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                     <img
                       src={spotlightProduct.image}
                       alt={spotlightProduct.title}
-                      className="h-24 w-24 shrink-0 border border-zinc-200 bg-white object-cover"
+                      className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 border border-zinc-200 bg-white object-cover"
                     />
-                    <div className="flex flex-1 flex-col justify-between">
+                    <div className="flex flex-1 flex-col justify-between min-w-0">
                       <div>
-                        <p className="text-[11px] font-semibold text-zinc-500">
+                        <p className="text-[11px] font-semibold text-zinc-500 truncate">
                           {spotlightProduct.brand} · {spotlightProduct.puffCount}
                         </p>
                         <h5 className="mt-0.5 line-clamp-2 font-display text-sm font-bold text-zinc-950">
                           {spotlightProduct.title}
                         </h5>
-                        <p className="mt-1 text-xs text-zinc-600">
+                        <p className="mt-1 text-xs text-zinc-600 truncate">
                           {spotlightProduct.variants.flavors.length} Flavours ·{' '}
                           {spotlightProduct.variants.nicotineOptions.join(' / ')}
                         </p>
@@ -447,6 +552,7 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
                         data-testid="mega-menu-spotlight-product-btn"
                         onClick={() => {
                           setOpenMegaMenu(null);
+                          setIsMegaMenuPinned(false);
                           navigateToProduct(spotlightProduct.id);
                         }}
                         className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-zinc-950 underline underline-offset-4 hover:text-zinc-700"

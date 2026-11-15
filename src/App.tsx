@@ -179,7 +179,7 @@ export default function App() {
       )}
 
       {/* Main Content Area with Framer Motion AnimatePresence Fade-and-Slide View Transition Wrapper */}
-      <main className="flex-1 overflow-x-hidden">
+      <main className="flex-1 overflow-x-clip">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={currentView}

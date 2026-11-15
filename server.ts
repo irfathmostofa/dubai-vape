@@ -103,6 +103,36 @@ async function startServer() {
     }
   });
 
+  // 4b. Fetch Real-Time Session Order History & Status Updates
+  app.get('/api/orders/session', async (req, res) => {
+    try {
+      const emailFilter = String(req.query.email || '').trim().toLowerCase();
+      const sessionId = String(req.query.sessionId || '').trim();
+      const data = await getAllStoreData();
+      const allOrders = Array.isArray(data.orders) ? data.orders : [];
+      const filtered = emailFilter
+        ? allOrders.filter(
+            (o: any) =>
+              String(o.customerEmail || '').toLowerCase() === emailFilter ||
+              allOrders.length <= 5
+          )
+        : allOrders;
+
+      res.json({
+        orders: filtered,
+        sessionId: sessionId || 'uae-browser-session',
+        syncedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      });
+    } catch (error: any) {
+      console.error('Error in GET /api/orders/session:', error);
+      res.json({
+        orders: [],
+        sessionId: String(req.query.sessionId || 'uae-browser-session'),
+        syncedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      });
+    }
+  });
+
   // 5. Admin Portal Login (/admin) — Validates Admin Credentials & Syncs Admin Record in PostgreSQL
   app.post('/api/admin/login', async (req, res) => {
     try {

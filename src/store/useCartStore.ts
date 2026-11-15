@@ -23,6 +23,10 @@ import {
   resolveInitialViewFromPathname,
   getPathnameForView,
   verifyAdminCredentials,
+  USER_ORDER_SESSION_KEY,
+  USER_SESSION_ID_KEY,
+  mergeSessionOrdersWithFetched,
+  simulateRealtimeOrderHistoryTick,
 } from '../utils/storeLogic';
 
 function syncBrowserUrlForView(view: 'home' | 'category' | 'product' | 'admin'): void {
@@ -149,47 +153,168 @@ function saveWishlistToStorage(ids: string[]): void {
   }
 }
 
-const INITIAL_SAMPLE_ORDER: CustomerOrder = {
-  orderId: 'VDK-892410',
-  fullName: 'Tariq Al Maktoum',
-  email: 'tariq.almaktoum@dubai.ae',
-  phone: '+971 50 842 9910',
-  emirate: 'Dubai',
-  address: 'Boulevard Point Tower, Apt 3402, Downtown Dubai',
-  paymentMethod: 'Cash on Delivery',
-  items: [
-    {
-      product: MOCK_PRODUCTS[0],
-      quantity: 2,
-      selectedVariant: {
-        flavor: MOCK_PRODUCTS[0].variants.flavors[0],
-        nicotine: MOCK_PRODUCTS[0].variants.nicotineOptions[0],
-        packId: 'single',
-        packLabel: 'Single Unit (1x)',
-        unitPrice: MOCK_PRODUCTS[0].price,
+const INITIAL_SAMPLE_ORDERS: CustomerOrder[] = [
+  {
+    orderId: 'VDK-892410',
+    fullName: 'Tariq Al Maktoum',
+    email: 'tariq.almaktoum@dubai.ae',
+    phone: '+971 50 842 9910',
+    emirate: 'Dubai',
+    address: 'Boulevard Point Tower, Apt 3402, Downtown Dubai',
+    paymentMethod: 'Cash on Delivery',
+    items: [
+      {
+        product: MOCK_PRODUCTS[0],
+        quantity: 2,
+        selectedVariant: {
+          flavor: MOCK_PRODUCTS[0].variants.flavors[0],
+          nicotine: MOCK_PRODUCTS[0].variants.nicotineOptions[0],
+          packId: 'single',
+          packLabel: 'Single Unit (1x)',
+          unitPrice: MOCK_PRODUCTS[0].price,
+        },
       },
-    },
-    {
-      product: MOCK_PRODUCTS[1],
-      quantity: 1,
-      selectedVariant: {
-        flavor: MOCK_PRODUCTS[1].variants.flavors[0],
-        nicotine: MOCK_PRODUCTS[1].variants.nicotineOptions[0],
-        packId: 'single',
-        packLabel: 'Single Unit (1x)',
-        unitPrice: MOCK_PRODUCTS[1].price,
+      {
+        product: MOCK_PRODUCTS[1],
+        quantity: 1,
+        selectedVariant: {
+          flavor: MOCK_PRODUCTS[1].variants.flavors[0],
+          nicotine: MOCK_PRODUCTS[1].variants.nicotineOptions[0],
+          packId: 'single',
+          packLabel: 'Single Unit (1x)',
+          unitPrice: MOCK_PRODUCTS[1].price,
+        },
       },
-    },
-  ],
-  subtotal: 145,
-  shippingFee: 25,
-  total: 170,
-  createdAt: '14:10 GST',
-  status: 'packed_al_quoz',
-  courierName: 'Rashid Al-Mansoor · Dubai Express Bike #14',
-  estimatedArrival: '35 mins (Sheikh Zayed Rd Route)',
-  timeline: buildOrderTimeline('packed_al_quoz'),
-};
+    ],
+    subtotal: 145,
+    shippingFee: 25,
+    total: 170,
+    createdAt: 'Today · 14:10 GST',
+    status: 'packed_al_quoz',
+    courierName: 'Rashid Al-Mansoor · Dubai Express Bike #14',
+    estimatedArrival: '35 mins (Sheikh Zayed Rd Route)',
+    timeline: buildOrderTimeline('packed_al_quoz'),
+  },
+  {
+    orderId: 'VDK-891855',
+    fullName: 'Tariq Al Maktoum',
+    email: 'tariq.almaktoum@dubai.ae',
+    phone: '+971 50 842 9910',
+    emirate: 'Dubai',
+    address: 'Marina Gate Tower 1, Apt 1904, Dubai Marina',
+    paymentMethod: 'Card Link on Delivery',
+    items: [
+      {
+        product: MOCK_PRODUCTS[2],
+        quantity: 1,
+        selectedVariant: {
+          flavor: MOCK_PRODUCTS[2].variants.flavors[0],
+          nicotine: MOCK_PRODUCTS[2].variants.nicotineOptions[0],
+          packId: 'single',
+          packLabel: 'Single Unit (1x)',
+          unitPrice: MOCK_PRODUCTS[2].price,
+        },
+      },
+      {
+        product: MOCK_PRODUCTS[5],
+        quantity: 1,
+        selectedVariant: {
+          flavor: MOCK_PRODUCTS[5].variants.flavors[0],
+          nicotine: MOCK_PRODUCTS[5].variants.nicotineOptions[0],
+          packId: 'single',
+          packLabel: 'Single Unit (1x)',
+          unitPrice: MOCK_PRODUCTS[5].price,
+        },
+      },
+    ],
+    subtotal: 280,
+    shippingFee: 25,
+    total: 305,
+    createdAt: 'Today · 11:45 GST',
+    status: 'out_for_delivery',
+    courierName: 'Zayed Al-Nuaimi · Marina Dispatch Van #07',
+    estimatedArrival: '15 mins (Jumeirah Beach Rd)',
+    timeline: buildOrderTimeline('out_for_delivery'),
+  },
+  {
+    orderId: 'VDK-889302',
+    fullName: 'Tariq Al Maktoum',
+    email: 'tariq.almaktoum@dubai.ae',
+    phone: '+971 50 842 9910',
+    emirate: 'Dubai',
+    address: 'Executive Towers East, Business Bay, Dubai',
+    paymentMethod: 'Cash on Delivery',
+    items: [
+      {
+        product: MOCK_PRODUCTS[6],
+        quantity: 1,
+        selectedVariant: {
+          flavor: MOCK_PRODUCTS[6].variants.flavors[0],
+          nicotine: MOCK_PRODUCTS[6].variants.nicotineOptions[0],
+          packId: 'pack3',
+          packLabel: '3-Pack Bundle (Save 10%)',
+          unitPrice: 102.6,
+        },
+      },
+    ],
+    subtotal: 102.6,
+    shippingFee: 25,
+    total: 127.6,
+    createdAt: 'Yesterday · 19:20 GST',
+    status: 'delivered',
+    courierName: 'Hamdan Courier · Business Bay Bike #03',
+    estimatedArrival: 'Delivered & COD Verified',
+    timeline: buildOrderTimeline('delivered'),
+  },
+];
+
+function loadOrCreateUserSessionId(): string {
+  if (typeof window === 'undefined') return 'uae-sess-server';
+  try {
+    const existing = window.sessionStorage.getItem(USER_SESSION_ID_KEY);
+    if (existing) return existing;
+    const created = `uae-sess-${Math.random().toString(36).slice(2, 9)}`;
+    window.sessionStorage.setItem(USER_SESSION_ID_KEY, created);
+    return created;
+  } catch {
+    return 'uae-sess-local';
+  }
+}
+
+function loadSessionOrdersFromStorage(): CustomerOrder[] {
+  if (typeof window === 'undefined') return INITIAL_SAMPLE_ORDERS;
+  try {
+    const raw = window.sessionStorage.getItem(USER_ORDER_SESSION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((o: CustomerOrder) => ({
+          ...o,
+          timeline:
+            o.timeline && o.timeline.length > 0
+              ? o.timeline
+              : buildOrderTimeline(o.status || 'order_placed'),
+        }));
+      }
+    }
+    window.sessionStorage.setItem(
+      USER_ORDER_SESSION_KEY,
+      JSON.stringify(INITIAL_SAMPLE_ORDERS)
+    );
+  } catch {
+    // ignore storage errors
+  }
+  return INITIAL_SAMPLE_ORDERS;
+}
+
+function saveSessionOrdersToStorage(orders: CustomerOrder[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(USER_ORDER_SESSION_KEY, JSON.stringify(orders));
+  } catch {
+    // ignore storage quota errors
+  }
+}
 
 const INITIAL_EMAIL_LOGS: EmailLogRecord[] = [
   {
@@ -224,6 +349,10 @@ interface CartStoreState {
   quickViewProduct: Product | null;
   lastOrder: CustomerOrder | null;
   recentOrders: CustomerOrder[];
+  sessionOrderIds: string[];
+  userSessionId: string;
+  isFetchingOrderHistory: boolean;
+  lastOrderHistorySyncAt: string | null;
   emailLogs: EmailLogRecord[];
   currentUser: AuthenticatedUser | null;
   authToken: string | null;
@@ -274,7 +403,7 @@ interface CartStoreState {
   trackProductClick: (productId: string) => void;
   clearRecentlyViewed: () => void;
 
-  // Checkout & Order Status Actions
+  // Checkout & Session Order History Actions
   placeOrder: (
     orderData: Omit<
       CustomerOrder,
@@ -287,6 +416,9 @@ interface CartStoreState {
     courierName?: string,
     estimatedArrival?: string
   ) => void;
+  fetchSessionOrderHistory: () => Promise<void>;
+  tickSessionOrderHistoryStatus: (targetOrderId?: string) => void;
+  reorderHistoricalOrder: (orderId: string) => void;
   clearLastOrder: () => void;
 
   // Admin & Backend Sync Actions
@@ -309,6 +441,8 @@ interface CartStoreState {
 }
 
 const initialAdminSession = loadInitialAdminSession();
+const initialSessionOrders = loadSessionOrdersFromStorage();
+const initialSessionId = loadOrCreateUserSessionId();
 
 export const useCartStore = create<CartStoreState>((set, get) => ({
   catalog: [...MOCK_PRODUCTS],
@@ -342,7 +476,11 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
   sortBy: 'featured',
   quickViewProduct: null,
   lastOrder: null,
-  recentOrders: [INITIAL_SAMPLE_ORDER],
+  recentOrders: initialSessionOrders,
+  sessionOrderIds: initialSessionOrders.map((o) => o.orderId),
+  userSessionId: initialSessionId,
+  isFetchingOrderHistory: false,
+  lastOrderHistorySyncAt: '14:35 GST',
   emailLogs: INITIAL_EMAIL_LOGS,
   currentUser: initialAdminSession.adminUser,
   authToken: initialAdminSession.token,
@@ -613,11 +751,17 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       timeline,
     };
 
-    set((state) => ({
-      items: [],
-      lastOrder: newOrder,
-      recentOrders: [newOrder, ...state.recentOrders],
-    }));
+    set((state) => {
+      const nextOrders = [newOrder, ...state.recentOrders];
+      const nextIds = Array.from(new Set([newOrder.orderId, ...state.sessionOrderIds]));
+      saveSessionOrdersToStorage(nextOrders);
+      return {
+        items: [],
+        lastOrder: newOrder,
+        recentOrders: nextOrders,
+        sessionOrderIds: nextIds,
+      };
+    });
 
     // Persist asynchronously to Cloud SQL PostgreSQL + trigger Resend email
     fetch('/api/orders', {
@@ -679,8 +823,8 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
     const nextTimeline = buildOrderTimeline(nextStatus);
     const activeStep = nextTimeline.find((t) => t.current);
 
-    set((state) => ({
-      recentOrders: state.recentOrders.map((ord) =>
+    set((state) => {
+      const nextOrders = state.recentOrders.map((ord) =>
         ord.orderId === orderId
           ? {
               ...ord,
@@ -690,8 +834,17 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
               ...(estimatedArrival ? { estimatedArrival } : {}),
             }
           : ord
-      ),
-    }));
+      );
+      saveSessionOrdersToStorage(nextOrders);
+      return {
+        recentOrders: nextOrders,
+        lastOrderHistorySyncAt: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      };
+    });
 
     fetch(`/api/orders/${encodeURIComponent(orderId)}/status`, {
       method: 'PATCH',
@@ -726,6 +879,124 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
         }
       })
       .catch(() => {});
+  },
+
+  fetchSessionOrderHistory: async () => {
+    const state = get();
+    set({ isFetchingOrderHistory: true });
+    try {
+      const emailParam = state.currentUser?.email
+        ? `&email=${encodeURIComponent(state.currentUser.email)}`
+        : '';
+      const res = await fetch(
+        `/api/orders/session?sessionId=${encodeURIComponent(state.userSessionId)}${emailParam}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const rawOrders = Array.isArray(data?.orders) ? data.orders : [];
+        const mappedFetched: CustomerOrder[] = rawOrders.map((row: any) => ({
+          orderId: row.orderNumber || row.orderId || 'VDK-892410',
+          fullName: row.customerName || row.fullName || 'Tariq Al Maktoum',
+          email: row.customerEmail || row.email || 'tariq.almaktoum@dubai.ae',
+          phone: row.customerPhone || row.phone || '+971 50 842 9910',
+          emirate: row.emirate || 'Dubai',
+          address: row.deliveryAddress || row.address || 'Downtown Dubai',
+          paymentMethod: row.paymentMethod || 'Cash on Delivery',
+          items: Array.isArray(row.items) && row.items.length > 0 && row.items[0]?.product
+            ? row.items
+            : [
+                {
+                  product: state.catalog[0] || MOCK_PRODUCTS[0],
+                  quantity: 1,
+                  selectedVariant: {
+                    flavor: (state.catalog[0] || MOCK_PRODUCTS[0]).variants.flavors[0],
+                    nicotine: (state.catalog[0] || MOCK_PRODUCTS[0]).variants.nicotineOptions[0],
+                    packId: 'single',
+                    packLabel: 'Single Unit (1x)',
+                    unitPrice: Number(row.totalAed || 40),
+                  },
+                },
+              ],
+          subtotal: Number(row.subtotalAed ?? row.subtotal ?? 145),
+          shippingFee: Number(row.shippingFeeAed ?? row.shippingFee ?? 25),
+          total: Number(row.totalAed ?? row.total ?? 170),
+          createdAt: row.createdAt
+            ? typeof row.createdAt === 'string' && row.createdAt.includes('GST')
+              ? row.createdAt
+              : new Date(row.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'Today',
+          status: (row.status as OrderStatusStage) || 'packed_al_quoz',
+          courierName: row.courierName || 'Rashid Al-Mansoor · Dubai Express Bike #14',
+          estimatedArrival: row.estimatedArrival || '35 mins (Sheikh Zayed Rd Route)',
+          timeline: buildOrderTimeline((row.status as OrderStatusStage) || 'packed_al_quoz'),
+        }));
+
+        set((s) => {
+          const merged = mergeSessionOrdersWithFetched(s.recentOrders, mappedFetched);
+          saveSessionOrdersToStorage(merged);
+          return {
+            recentOrders: merged,
+            sessionOrderIds: Array.from(
+              new Set([...s.sessionOrderIds, ...merged.map((o) => o.orderId)])
+            ),
+            isFetchingOrderHistory: false,
+            lastOrderHistorySyncAt:
+              data?.syncedAt ||
+              new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
+          };
+        });
+        return;
+      }
+    } catch {
+      // Fallback to local session orders
+    }
+    set({
+      isFetchingOrderHistory: false,
+      lastOrderHistorySyncAt: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    });
+  },
+
+  tickSessionOrderHistoryStatus: (targetOrderId) => {
+    set((state) => {
+      const nextOrders = simulateRealtimeOrderHistoryTick(state.recentOrders, targetOrderId);
+      saveSessionOrdersToStorage(nextOrders);
+      return {
+        recentOrders: nextOrders,
+        lastOrderHistorySyncAt: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      };
+    });
+  },
+
+  reorderHistoricalOrder: (orderId) => {
+    set((state) => {
+      const targetOrder = state.recentOrders.find((o) => o.orderId === orderId);
+      if (!targetOrder) return state;
+      let nextItems = [...state.items];
+      for (const line of targetOrder.items) {
+        nextItems = addOrIncrementCartItem(
+          nextItems,
+          line.product,
+          line.quantity,
+          line.selectedVariant
+        );
+      }
+      return {
+        items: nextItems,
+        isCartOpen: true,
+      };
+    });
   },
 
   clearLastOrder: () => set({ lastOrder: null }),

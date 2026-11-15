@@ -1,5 +1,7 @@
 import {
+  AuthenticatedUser,
   CartItem,
+  CustomerOrder,
   OrderStatusStage,
   OrderTimelineStep,
   PackTierId,
@@ -697,6 +699,114 @@ export function serializeStructuredDataJsonLd(input: StructuredDataInput): strin
   return JSON.stringify(buildStructuredDataJsonLd(input));
 }
 
+export const USER_ORDER_SESSION_KEY = 'vdk-session-order-history-v1';
+export const USER_SESSION_ID_KEY = 'vdk-user-session-id-v1';
 
+export function getOrderStatusLabel(status: OrderStatusStage): string {
+  const step = buildOrderTimeline(status).find((s) => s.status === status);
+  return step ? step.label : 'Order Placed';
+}
 
+/**
+ * Filters and links orders to the active user session (authenticated user or browser session IDs).
+ */
+export function filterOrdersForUserSession(
+  orders: CustomerOrder[],
+  currentUser: AuthenticatedUser | null,
+  sessionOrderIds: string[] = []
+): CustomerOrder[] {
+  if (!Array.isArray(orders) || orders.length === 0) return [];
 
+  const sessionSet = new Set(sessionOrderIds);
+
+  if (currentUser) {
+    const normalizedEmail = (currentUser.email || '').trim().toLowerCase();
+    const normalizedPhone = (currentUser.phone || '').replace(/\s+/g, '');
+    const matched = orders.filter((order) => {
+      const orderEmail = (order.email || '').trim().toLowerCase();
+      const orderPhone = (order.phone || '').replace(/\s+/g, '');
+      return (
+        (normalizedEmail && orderEmail === normalizedEmail) ||
+        (normalizedPhone && orderPhone === normalizedPhone) ||
+        sessionSet.has(order.orderId)
+      );
+    });
+    return matched.length > 0 ? matched : orders;
+  }
+
+  if (sessionSet.size > 0) {
+    const matchedSession = orders.filter((o) => sessionSet.has(o.orderId));
+    return matchedSession.length > 0 ? matchedSession : orders;
+  }
+
+  return orders;
+}
+
+/**
+ * Merges orders fetched from the backend session endpoint with local session orders,
+ * ensuring each order has a complete 5-stage mock timeline and deduplicating by orderId.
+ */
+export function mergeSessionOrdersWithFetched(
+  localOrders: CustomerOrder[],
+  fetchedOrders: CustomerOrder[]
+): CustomerOrder[] {
+  const mergedMap = new Map<string, CustomerOrder>();
+
+  for (const ord of localOrders) {
+    mergedMap.set(ord.orderId, {
+      ...ord,
+      timeline:
+        ord.timeline && ord.timeline.length > 0
+          ? ord.timeline
+          : buildOrderTimeline(ord.status),
+    });
+  }
+
+  for (const fetched of fetchedOrders) {
+    if (!fetched || !fetched.orderId) continue;
+    const existing = mergedMap.get(fetched.orderId);
+    if (existing) {
+      mergedMap.set(fetched.orderId, {
+        ...existing,
+        ...fetched,
+        items: fetched.items && fetched.items.length > 0 ? fetched.items : existing.items,
+        timeline: buildOrderTimeline(fetched.status || existing.status),
+      });
+    } else {
+      mergedMap.set(fetched.orderId, {
+        ...fetched,
+        timeline:
+          fetched.timeline && fetched.timeline.length > 0
+            ? fetched.timeline
+            : buildOrderTimeline(fetched.status || 'order_placed'),
+      });
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Advances the real-time mock status timeline for a specific order (or the first active order) in the user's session.
+ */
+export function simulateRealtimeOrderHistoryTick(
+  orders: CustomerOrder[],
+  targetOrderId?: string
+): CustomerOrder[] {
+  if (!Array.isArray(orders) || orders.length === 0) return [];
+
+  const idToAdvance =
+    targetOrderId ||
+    orders.find((o) => o.status !== 'delivered')?.orderId ||
+    orders[0].orderId;
+
+  return orders.map((ord) => {
+    if (ord.orderId !== idToAdvance) return ord;
+    const nextStatus = getNextOrderStatus(ord.status);
+    return {
+      ...ord,
+      status: nextStatus,
+      timeline: buildOrderTimeline(nextStatus),
+    };
+  });
+}
