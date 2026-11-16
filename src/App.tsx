@@ -22,6 +22,7 @@ import { MarketingInactivityPopup } from './components/MarketingInactivityPopup'
 import { HealthWarningBanner } from './components/HealthWarningBanner';
 import { RecentlyViewedSection } from './components/RecentlyViewedSection';
 import { Footer } from './components/Footer';
+import { WhatsAppFloatingButton } from './components/WhatsAppFloatingButton';
 import { FEATURED_BRANDS } from './data/products';
 import { useCartStore } from './store/useCartStore';
 import {
@@ -380,6 +381,9 @@ export default function App() {
       {/* Prominent Health Warning Banner & 4-Column Footer on Storefront Views */}
       {currentView !== 'admin' && <HealthWarningBanner />}
       {currentView !== 'admin' && <Footer onSelectCategory={handleSelectCategory} />}
+
+      {/* Floating WhatsApp Support Action Button in Bottom Right Corner */}
+      <WhatsAppFloatingButton />
     </div>
   );
 }

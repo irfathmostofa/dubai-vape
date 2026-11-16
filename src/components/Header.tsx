@@ -358,101 +358,54 @@ export function Header({ onOpenAccount, onNavigateToCatalog }: HeaderProps) {
           </div>
         </div>
 
-        {/* Sticky Mega Menu Quick-Switch Bar (Always Sticky at Top of Viewport) */}
-        <div
-          data-testid="sticky-mega-menu-bar"
-          className="border-t border-zinc-100 bg-zinc-50/95 px-3 py-1.5 sm:px-6 lg:px-8"
-        >
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="inline-flex items-center gap-1 bg-zinc-950 px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase shrink-0">
-                <Layers className="h-2.5 w-2.5" />
-                <span>Mega Menu</span>
-              </span>
-              {NAV_LINKS.map((cat) => {
-                const isSelected = openMegaMenu === cat;
-                return (
-                  <button
-                    key={`sticky-pill-${cat}`}
-                    type="button"
-                    data-testid={`sticky-mega-trigger-${cat.toLowerCase().replace(/\s+/g, '-')}`}
-                    onClick={() => {
-                      if (openMegaMenu === cat && isMegaMenuPinned) {
-                        setOpenMegaMenu(null);
-                        setIsMegaMenuPinned(false);
-                      } else {
-                        setOpenMegaMenu(cat);
-                        setIsMegaMenuPinned(true);
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                      isSelected
-                        ? 'bg-zinc-950 text-white'
-                        : 'text-zinc-700 hover:bg-zinc-200/70 hover:text-zinc-950'
-                    }`}
-                  >
-                    <span>{cat}</span>
-                    <ChevronDown
-                      className={`h-3 w-3 transition-transform ${
-                        isSelected ? 'rotate-180 text-emerald-400' : 'text-zinc-400'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
-            {openMegaMenu && (
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  data-testid="pin-mega-menu-btn"
-                  onClick={() => setIsMegaMenuPinned((prev) => !prev)}
-                  className={`inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-bold uppercase transition-colors ${
-                    isMegaMenuPinned
-                      ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
-                      : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-950'
-                  }`}
-                >
-                  <Pin className="h-2.5 w-2.5" />
-                  <span>{isMegaMenuPinned ? 'Sticky Pinned' : 'Pin Menu'}</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="close-mega-menu-btn"
-                  onClick={() => {
-                    setOpenMegaMenu(null);
-                    setIsMegaMenuPinned(false);
-                  }}
-                  aria-label="Close mega menu"
-                  className="inline-flex items-center gap-1 bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-900 hover:bg-zinc-950 hover:text-white"
-                >
-                  <X className="h-2.5 w-2.5" />
-                  <span>Close</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Full-Width Sticky Mega Menu Panel (Sticks directly to the sticky header across scroll depths) */}
         {openMegaMenu && activeMegaData && spotlightProduct && (
           <div
             data-testid="mega-menu-panel"
             role="region"
             aria-label={`${openMegaMenu} Sticky Mega Menu`}
-            className="absolute top-full right-0 left-0 z-50 max-h-[calc(100vh-6.5rem)] overflow-y-auto border-b-2 border-zinc-950 bg-white/98 backdrop-blur-md shadow-2xl"
+            className="hidden lg:block absolute top-full right-0 left-0 z-50 max-h-[calc(100vh-5rem)] overflow-y-auto border-b-2 border-zinc-950 bg-white/98 backdrop-blur-md shadow-2xl"
           >
-            <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+            <div className="mx-auto max-w-7xl px-8 py-7">
+              <div className="mb-4 flex items-center justify-between border-b border-zinc-100 pb-2.5">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">
+                  <Layers className="h-3.5 w-3.5 text-zinc-950" />
+                  <span>{activeMegaData.tagline}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="pin-mega-menu-btn"
+                    onClick={() => setIsMegaMenuPinned((prev) => !prev)}
+                    className={`inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-bold uppercase transition-colors ${
+                      isMegaMenuPinned
+                        ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                        : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-950'
+                    }`}
+                  >
+                    <Pin className="h-2.5 w-2.5" />
+                    <span>{isMegaMenuPinned ? 'Pinned Open' : 'Pin Menu'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="close-mega-menu-btn"
+                    onClick={() => {
+                      setOpenMegaMenu(null);
+                      setIsMegaMenuPinned(false);
+                    }}
+                    aria-label="Close mega menu"
+                    className="inline-flex items-center gap-1 bg-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-900 hover:bg-zinc-950 hover:text-white"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                    <span>Close</span>
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-12 gap-8">
                 {/* Column 1 (3 cols): Category Overview & Direct Category Page CTA */}
-                <div className="lg:col-span-3 flex flex-col justify-between border-b border-zinc-200 pb-5 lg:border-r lg:border-b-0 lg:pb-0 lg:pr-6">
+                <div className="col-span-3 flex flex-col justify-between border-r border-zinc-200 pr-6">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">
-                      <Layers className="h-3.5 w-3.5 text-zinc-950" />
-                      <span>{activeMegaData.tagline}</span>
-                    </div>
-                    <h3 className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-zinc-950">
+                    <h3 className="font-display text-2xl font-bold tracking-tight text-zinc-950">
                       {openMegaMenu}
                     </h3>
                     <p className="mt-2 text-xs leading-relaxed text-zinc-600">

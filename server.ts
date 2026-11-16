@@ -22,7 +22,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '15mb' }));
+  app.use('/src/assets', express.static(path.join(process.cwd(), 'src/assets')));
+  app.use('/images', express.static(path.join(process.cwd(), 'src/assets/images')));
 
   // 1. Bootstrap Store Data (Products, Categories, Orders, Users, Resend Email Logs)
   app.get('/api/bootstrap', async (_req, res) => {

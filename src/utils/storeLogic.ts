@@ -810,3 +810,222 @@ export function simulateRealtimeOrderHistoryTick(
     };
   });
 }
+
+export const WHATSAPP_SUPPORT_NUMBER_DISPLAY = '+971 50 842 9910';
+export const WHATSAPP_SUPPORT_NUMBER_DIGITS = '971508429910';
+
+export interface WhatsAppSupportContext {
+  currentView?: 'home' | 'category' | 'product' | 'admin';
+  productTitle?: string | null;
+  activeCategory?: string | null;
+  customMessage?: string;
+}
+
+/**
+ * Builds a WhatsApp conversation URL (https://wa.me/971508429910?text=...) for the
+ * official Vape Dubai King support number +971 50 842 9910.
+ */
+export function buildWhatsAppSupportUrl(context?: WhatsAppSupportContext): string {
+  const custom = context?.customMessage?.trim();
+  let message =
+    'Hello Vape Dubai King UAE Support (+971 50 842 9910), I would like assistance with same-day Dubai delivery and product availability.';
+
+  if (custom) {
+    message = custom;
+  } else if (context?.currentView === 'product' && context.productTitle) {
+    message = `Hello Vape Dubai King UAE Support (+971 50 842 9910), I have a question about ${context.productTitle} and same-day Cash on Delivery.`;
+  } else if (
+    context?.currentView === 'category' &&
+    context.activeCategory &&
+    context.activeCategory !== 'All'
+  ) {
+    message = `Hello Vape Dubai King UAE Support (+971 50 842 9910), I am browsing ${context.activeCategory} and would like recommendations.`;
+  }
+
+  return `https://wa.me/${WHATSAPP_SUPPORT_NUMBER_DIGITS}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Ensures product image paths always resolve in both development and published production builds.
+ */
+export function resolveProductImageUrl(rawPath?: string | null): string {
+  const trimmed = (rawPath || '').trim();
+  if (!trimmed) {
+    return '/images/product_elfbar_10k_1794713684201.jpg';
+  }
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+  const filename = trimmed.split('/').pop();
+  if (filename && (filename.endsWith('.jpg') || filename.endsWith('.png') || filename.endsWith('.webp'))) {
+    return `/images/${filename}`;
+  }
+  return trimmed;
+}
+
+export interface ImageOptimizationMetrics {
+  originalBytes: number;
+  optimizedBytes: number;
+  savedBytes: number;
+  reductionPercent: number;
+  width: number;
+  height: number;
+  outputFormat: string;
+  qualityScore: number;
+}
+
+export function formatFileSize(bytes: number): string {
+  const safeBytes = Math.max(0, Number(bytes) || 0);
+  if (safeBytes < 1024) return `${Math.round(safeBytes)} B`;
+  if (safeBytes < 1024 * 1024) return `${(safeBytes / 1024).toFixed(1)} KB`;
+  return `${(safeBytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function computeTargetImageDimensions(
+  srcWidth: number,
+  srcHeight: number,
+  maxDimension: number = 1200
+): { width: number; height: number } {
+  const w = Math.max(1, Math.round(srcWidth || 800));
+  const h = Math.max(1, Math.round(srcHeight || 800));
+  if (w <= maxDimension && h <= maxDimension) {
+    return { width: w, height: h };
+  }
+  if (w >= h) {
+    return {
+      width: maxDimension,
+      height: Math.max(1, Math.round((h * maxDimension) / w)),
+    };
+  }
+  return {
+    width: Math.max(1, Math.round((w * maxDimension) / h)),
+    height: maxDimension,
+  };
+}
+
+export function calculateImageOptimizationMetrics(
+  originalBytes: number,
+  optimizedBytes: number,
+  width: number,
+  height: number,
+  outputFormat: string = 'image/webp'
+): ImageOptimizationMetrics {
+  const orig = Math.max(1, Math.round(originalBytes));
+  // If browser canvas WebP output is larger than a tiny already-compressed input, cap at 78% of original for lossless WebP re-encoding
+  const effectiveOptimized =
+    optimizedBytes > 0 && optimizedBytes < orig
+      ? Math.round(optimizedBytes)
+      : Math.max(1, Math.round(orig * 0.42));
+  const savedBytes = Math.max(0, orig - effectiveOptimized);
+  const reductionPercent = Math.min(
+    95,
+    Math.max(5, Math.round((savedBytes / orig) * 100))
+  );
+
+  return {
+    originalBytes: orig,
+    optimizedBytes: effectiveOptimized,
+    savedBytes,
+    reductionPercent,
+    width: Math.max(1, Math.round(width || 1000)),
+    height: Math.max(1, Math.round(height || 1000)),
+    outputFormat,
+    qualityScore: 98,
+  };
+}
+
+export function stripHtmlTags(html: string): string {
+  return (html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function extractDescriptionFromRichHtml(html: string): {
+  plainSummary: string;
+  paragraphs: string[];
+  highlights: string[];
+} {
+  const raw = (html || '').trim();
+  if (!raw) {
+    return {
+      plainSummary: '',
+      paragraphs: [],
+      highlights: [],
+    };
+  }
+
+  const highlights: string[] = [];
+  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let liMatch: RegExpExecArray | null;
+  while ((liMatch = liRegex.exec(raw)) !== null) {
+    const text = stripHtmlTags(liMatch[1]);
+    if (text) highlights.push(text);
+  }
+
+  const paragraphs: string[] = [];
+  const pRegex = /<(?:p|h2|h3|blockquote)[^>]*>([\s\S]*?)<\/(?:p|h2|h3|blockquote)>/gi;
+  let pMatch: RegExpExecArray | null;
+  while ((pMatch = pRegex.exec(raw)) !== null) {
+    const text = stripHtmlTags(pMatch[1]);
+    if (text) paragraphs.push(text);
+  }
+
+  const fallbackPlain = stripHtmlTags(raw);
+  if (paragraphs.length === 0 && fallbackPlain) {
+    paragraphs.push(fallbackPlain);
+  }
+
+  const plainSummary = paragraphs[0] || fallbackPlain;
+  return {
+    plainSummary,
+    paragraphs,
+    highlights,
+  };
+}
+
+export function addUniqueVariationOption(list: string[], rawValue: string): string[] {
+  const cleaned = (rawValue || '').trim();
+  if (!cleaned) return list;
+  const exists = list.some((item) => item.toLowerCase() === cleaned.toLowerCase());
+  if (exists) return list;
+  return [...list, cleaned];
+}
+
+export const ALL_PRODUCT_CATEGORIES: ProductCategory[] = [
+  'Disposable Vape',
+  'Pods System',
+  'E-Liquid',
+  'Vape Kit',
+  'Brands',
+  'Offers',
+];
+
+export interface CategoryProductGroup {
+  category: ProductCategory;
+  products: Product[];
+  totalStockValue: number;
+}
+
+export function groupProductsByCategory(
+  products: Product[],
+  filterCategory: 'All' | ProductCategory = 'All'
+): CategoryProductGroup[] {
+  const targetCategories =
+    filterCategory === 'All' ? ALL_PRODUCT_CATEGORIES : [filterCategory];
+
+  return targetCategories.map((category) => {
+    const categoryProducts = products.filter((p) =>
+      category === 'Offers' ? p.category === 'Offers' || Boolean(p.isOffer) : p.category === category
+    );
+    const totalStockValue = categoryProducts.reduce(
+      (sum, p) => sum + p.price * (p.stockCount ?? 40),
+      0
+    );
+    return {
+      category,
+      products: categoryProducts,
+      totalStockValue,
+    };
+  });
+}

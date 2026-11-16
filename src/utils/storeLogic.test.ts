@@ -35,6 +35,17 @@ import {
   mergeSessionOrdersWithFetched,
   simulateRealtimeOrderHistoryTick,
   getOrderStatusLabel,
+  WHATSAPP_SUPPORT_NUMBER_DISPLAY,
+  WHATSAPP_SUPPORT_NUMBER_DIGITS,
+  buildWhatsAppSupportUrl,
+  resolveProductImageUrl,
+  formatFileSize,
+  computeTargetImageDimensions,
+  calculateImageOptimizationMetrics,
+  stripHtmlTags,
+  extractDescriptionFromRichHtml,
+  addUniqueVariationOption,
+  groupProductsByCategory,
 } from './storeLogic';
 import { CustomerOrder, Product } from '../types/store';
 
@@ -447,3 +458,69 @@ test('session-linked Order History helpers filter, merge, and advance real-time 
   assert.equal(ticked[0].status, 'delivered');
   assert.equal(ticked[0].timeline?.find((s) => s.current)?.status, 'delivered');
 });
+
+test('buildWhatsAppSupportUrl and resolveProductImageUrl format support link and production image paths accurately', () => {
+  assert.equal(WHATSAPP_SUPPORT_NUMBER_DISPLAY, '+971 50 842 9910');
+  assert.equal(WHATSAPP_SUPPORT_NUMBER_DIGITS, '971508429910');
+
+  const homeUrl = buildWhatsAppSupportUrl({ currentView: 'home' });
+  assert.ok(homeUrl.startsWith('https://wa.me/971508429910?text='));
+  assert.ok(decodeURIComponent(homeUrl).includes('+971 50 842 9910'));
+
+  const productUrl = buildWhatsAppSupportUrl({
+    currentView: 'product',
+    productTitle: 'Elf Bar 10000 Puffs Digital Display — Blue Razz Ice',
+  });
+  assert.ok(productUrl.startsWith('https://wa.me/971508429910?text='));
+  assert.ok(decodeURIComponent(productUrl).includes('Elf Bar 10000 Puffs'));
+
+  assert.equal(
+    resolveProductImageUrl('/src/assets/images/product_elfbar_10k_1794713684201.jpg'),
+    '/images/product_elfbar_10k_1794713684201.jpg'
+  );
+  assert.equal(
+    resolveProductImageUrl(''),
+    '/images/product_elfbar_10k_1794713684201.jpg'
+  );
+});
+
+test('admin image optimization metrics, TipTap rich description parser, variation chips, and category-wise grouping work accurately', () => {
+  assert.equal(formatFileSize(512), '512 B');
+  assert.equal(formatFileSize(153600), '150.0 KB');
+  assert.equal(formatFileSize(2621440), '2.50 MB');
+
+  const scaled = computeTargetImageDimensions(2400, 1800, 1200);
+  assert.equal(scaled.width, 1200);
+  assert.equal(scaled.height, 900);
+
+  const unchanged = computeTargetImageDimensions(800, 800, 1200);
+  assert.equal(unchanged.width, 800);
+  assert.equal(unchanged.height, 800);
+
+  const metrics = calculateImageOptimizationMetrics(420000, 126000, 1200, 1200, 'image/webp');
+  assert.equal(metrics.savedBytes, 294000);
+  assert.equal(metrics.reductionPercent, 70);
+  assert.equal(metrics.outputFormat, 'image/webp');
+
+  const richHtml =
+    '<h2>Geek Bar Pulse X</h2><p>Dual-mesh <strong>smart OLED</strong> hardware engineered for UAE.</p><ul><li>850mAh Type-C battery</li><li>25,000 Puffs Dual Mode</li></ul>';
+  assert.ok(stripHtmlTags(richHtml).includes('Dual-mesh smart OLED'));
+  const parsed = extractDescriptionFromRichHtml(richHtml);
+  assert.equal(parsed.paragraphs.length, 2);
+  assert.equal(parsed.highlights.length, 2);
+  assert.equal(parsed.highlights[0], '850mAh Type-C battery');
+
+  let flavors = ['Blue Razz Ice'];
+  flavors = addUniqueVariationOption(flavors, 'Dubai Mango Mint');
+  flavors = addUniqueVariationOption(flavors, 'blue razz ice');
+  assert.deepEqual(flavors, ['Blue Razz Ice', 'Dubai Mango Mint']);
+
+  const grouped = groupProductsByCategory(sampleProducts);
+  assert.equal(grouped.length, 6);
+  const dispGroup = grouped.find((g) => g.category === 'Disposable Vape');
+  const podsGroup = grouped.find((g) => g.category === 'Pods System');
+  assert.equal(dispGroup?.products.length, 1);
+  assert.equal(podsGroup?.products.length, 1);
+});
+
+
